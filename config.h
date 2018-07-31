@@ -57,7 +57,7 @@ struct common_conf {
 	char	*auth_token;
 	int		heartbeat_interval; /* default 10 */
 	int		heartbeat_timeout;	/* default 30 */
-	int 	tcp_mux;		/* default 0 */
+	int 	tcp_mux;		/* default 0 */  // TCP 多路复用,高级
 	char	*user;
 
 	/* private fields */

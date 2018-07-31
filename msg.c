@@ -131,6 +131,8 @@ char *get_auth_key(const char *token, long int *timestamp)
 size_t login_request_marshal(char **msg)
 {
 	size_t nret = 0;
+
+	//新建json的object
 	struct json_object *j_login_req = json_object_new_object();
 	if (is_error(j_login_req))
 		return 0;
@@ -141,10 +143,13 @@ size_t login_request_marshal(char **msg)
 	
 	SAFE_FREE(lg->privilege_key);
 	struct common_conf *cf = get_common_config();
+
+	//获取auth key
 	char *auth_key = get_auth_key(cf->privilege_token, &lg->timestamp);
 	lg->privilege_key = strdup(auth_key);
 	assert(lg->privilege_key);
-	
+
+	//填充json
 	JSON_MARSHAL_TYPE(j_login_req, "version", string, lg->version);
 	JSON_MARSHAL_TYPE(j_login_req, "hostname", string, SAFE_JSON_STRING(lg->hostname));
 	JSON_MARSHAL_TYPE(j_login_req, "os", string, lg->os);
@@ -157,13 +162,19 @@ size_t login_request_marshal(char **msg)
 	JSON_MARSHAL_TYPE(j_login_req, "pool_count", int, lg->pool_count);
 
 	const char *tmp = NULL;
+
+	//json obj转字符串
 	tmp = json_object_to_json_string(j_login_req);
 	if (tmp && strlen(tmp) > 0) {
 		nret = strlen(tmp);
 		*msg = strdup(tmp);
 		assert(*msg);
 	}
+
+	//最后释放json obj
 	json_object_put(j_login_req);
+
+	//释放auth key
 	SAFE_FREE(auth_key);
 	return nret;
 }
@@ -408,6 +419,10 @@ struct message *unpack(unsigned char *recv_msg, const ushort len)
 	return msg;
 }
 
+//消息pack的方法:
+//1. 先检查大小端,如果是大端,则len做转换
+//2. type_len+size_len+data_len, 构造buffer
+//3. 先放type字段1字节,然后放len字段4字节,最后放data段,直接copy
 size_t pack(struct message *req_msg, unsigned char **ret_buf)
 {
 	int endian_check = 1;

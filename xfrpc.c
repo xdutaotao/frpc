@@ -48,8 +48,12 @@
 
 void xfrpc_loop()
 {
+	//初始化主控
 	init_main_control();
+
+	//启动主控,主循环
 	run_control();
-	
+
+	//关闭主控
 	close_main_control();
 }

@@ -175,6 +175,8 @@ static void init_msg_reader(unsigned char *iv)
 }
 #endif // USEENCRYPTION
 
+
+//发送请求数据
 static size_t request(struct bufferevent *bev, struct frame *f) 
 {
 	size_t write_len = 0;
@@ -197,6 +199,7 @@ static size_t request(struct bufferevent *bev, struct frame *f)
 	if ( 0 == write_len)
 		return 0;
 
+	//直接发送data数据
 	bufferevent_write(bout, f->data, write_len);
 	return write_len;
 }
@@ -317,12 +320,16 @@ static void sync_new_work_connection(struct bufferevent *bev)
 	SAFE_FREE(work_c);
 }
 
+
+//连接proxy server
 struct bufferevent *
 connect_server(struct event_base *base, const char *name, const int port)
 {
+	//生成bufferevent io base结构
 	struct bufferevent *bev = bufferevent_socket_new(base, -1, BEV_OPT_CLOSE_ON_FREE);
 	assert(bev);
 
+	//连接name:port
 	if (bufferevent_socket_connect_hostname(bev, 
 		main_ctl->dnsbase, 
 		AF_INET, 
@@ -330,9 +337,11 @@ connect_server(struct event_base *base, const char *name, const int port)
 		port) < 0 ) {
 
 		bufferevent_free(bev);
+		//失败
 		return NULL;
 	}
-	
+
+	//成功
 	return bev;
 }
 
@@ -398,6 +407,8 @@ static int proxy_service_resp_raw(struct new_proxy_response *npr)
 	return 0;
 }
 
+
+//msg为json消息字符串
 static void 
 raw_message(struct message *msg, struct bufferevent *bev, struct proxy_client *client)
 {
@@ -409,6 +420,8 @@ raw_message(struct message *msg, struct bufferevent *bev, struct proxy_client *c
 
 	struct start_work_conn_resp *sr = NULL; //used in TypeStartWorkConn
 	switch(msg->type) {
+
+		//如果收到的是登录Response
 		case TypeLoginResp:
 			if (msg->data_p == NULL) {
 				debug(LOG_ERR, 
@@ -416,12 +429,14 @@ raw_message(struct message *msg, struct bufferevent *bev, struct proxy_client *c
 				break;
 			}
 
+			//解析login返回的json串
 			struct login_resp *lr = login_resp_unmarshal(msg->data_p);
 			if (lr == NULL) {
 				debug(LOG_ERR, "login response buffer init faild!");
 				return;
 			}
 
+			//检查是否登录ok
 			int is_logged = login_resp_check(lr);
 #ifdef USEENCRYPTION
 			if (is_logged) {
@@ -430,6 +445,7 @@ raw_message(struct message *msg, struct bufferevent *bev, struct proxy_client *c
 #endif // USEENCRYPTION
 
 			if ( ! is_logged) {
+				//登录失败,则重新调用login
 				debug(LOG_ERR, "xfrp login failed, try again!");
 				login();
 				SAFE_FREE(lr);
@@ -439,16 +455,25 @@ raw_message(struct message *msg, struct bufferevent *bev, struct proxy_client *c
 			SAFE_FREE(lr);
 			break;
 
+		//ReqWorkConn类型事件
 		case TypeReqWorkConn:
 			if (! is_client_connected()) {
+
+				//开启proxy services
 				start_proxy_services();
+
+				//
 				client_connected(1);
+
+				//发送PING消息
 				ping(bev);
 			}
 
+			//新的client连上来
 			new_client_connect();
 			break;
 
+		//NewProxyResp类型事件
 		case TypeNewProxyResp:
 			{
 				if (msg->data_p == NULL) {
@@ -469,6 +494,7 @@ raw_message(struct message *msg, struct bufferevent *bev, struct proxy_client *c
 				break;
 			}
 
+		//StartWorkConn类型事件
 		case TypeStartWorkConn:
 			sr = start_work_conn_resp_unmarshal(msg->data_p); 
 			if (! sr) {
@@ -495,21 +521,27 @@ raw_message(struct message *msg, struct bufferevent *bev, struct proxy_client *c
 			start_xfrp_tunnel(client);
 			set_client_work_start(client, 1);
 			break;
+
+		//相应PING-PONG
 		case TypePong:
 			pong(bev, NULL);
 			break;
+		
 		default:
 			break;
 	}
 	SAFE_FREE(sr);
 }
 
+//数据handler
 static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *client)
 {
 	struct bufferevent *bev = NULL;
 	if (client) {
 		debug(LOG_DEBUG, "client(%s): recved control data", 
 			is_client_work_started(client)?"work":"free");
+
+		//bufferevent 置为client对应的bev
 		bev = client->ctl_bev;
 	}
 	unsigned char *ret_buf = NULL;
@@ -528,10 +560,12 @@ static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *
 #endif //  RECV_DEBUG
 
 	int min_buf_len = 0;
-	if (get_common_config()->tcp_mux) {
+	if (get_common_config()->tcp_mux) { //TCP 多路复用
 		f = raw_frame(buf, len);
 		min_buf_len = get_header_size();
 	} else {
+
+		//直接读取frame
 		f = raw_frame_only_msg(buf, len);
 		set_frame_cmd(f, cmdPSH);
 	}
@@ -624,6 +658,8 @@ static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *
 		case cmdFIN:	//1 close session
 			break;
 		case cmdPSH:	//2
+
+			//实际数据push过来了,先unpack
 			msg = unpack(ret_buf, f->len);
 			if ( ! (msg && msg->data_p)) {
 				debug(LOG_ERR, "message received format invalid");
@@ -634,6 +670,7 @@ static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *
 			if (msg->data_p == NULL)
 				goto DATA_H_END;
 
+			//将raw消息解开,并进行相应处理
 			raw_message(msg, bev, client);
 			break;
 		default:
@@ -720,6 +757,7 @@ static unsigned char
 	}
 
 	if (! splited) {
+		//数据为分离,可以直接handler
 		data_handler(buf, buf_len, ctx);
 		*ret_len = 0;
 		return NULL;
@@ -742,25 +780,40 @@ static unsigned char
 	return unraw_buf_p;
 }
 
+
+// 非常重要的recv_cb回调事件
 // ctx: if recv_cb was called by common control, ctx == NULL
 //		else ctx == client struct
 static void recv_cb(struct bufferevent *bev, void *ctx)
 {
+	// 拿到evbuffer,获取buffer长度
 	struct evbuffer *input = bufferevent_get_input(bev);
 	int len = evbuffer_get_length(input);
+
+	//长度< 0 则直接返回不响应
 	if (len < 0) {
 		return;
 	}
 
+	//如果长度len==0呢, 这里感觉有个bug
+
+	//构造buffer缓冲
 	unsigned char *buf = calloc(1, len);
 	assert(buf);
 
 	size_t read_n = 0;
 	size_t ret_len = 0;
+
+	//从evbuffer中读取len长度的数据到buf中
 	read_n = evbuffer_remove(input, buf, len);
 
+	//
 	struct proxy_client *client = (struct proxy_client *)ctx;
+
+	//如果拿到的size > 0
 	if (read_n) {
+
+		//准备解析buf
 		unsigned char *raw_buf_p = buf;
 		for( ; raw_buf_p && read_n ; ) {
 // #define CONN_DEBUG 1
@@ -775,6 +828,7 @@ static void recv_cb(struct bufferevent *bev, void *ctx)
 			SAFE_FREE(dbg_buf);
 #endif //CONN_DEBUG
 
+			//
 			raw_buf_p = multy_recv_buffer_raw(raw_buf_p, read_n, &ret_len, client);
 			read_n = ret_len;
 
@@ -803,20 +857,31 @@ static void recv_cb(struct bufferevent *bev, void *ctx)
 	return;
 }
 
+
+//开始一个新的session
 static void open_connection_session(struct bufferevent *bev)
 {
+	//SYN frame
 	struct frame *f = new_frame(cmdSYN, main_ctl->session_id);
 	assert(f);
 
+	//发送SYN frame
 	request(bev, f);
+
+	//释放
 	free_frame(f);
 }
 
+//connect callback回调
 static void connect_event_cb (struct bufferevent *bev, short what, void *ctx)
 {
 	struct common_conf 	*c_conf = get_common_config();
 	static int retry_times = 0;
+
+	//状态, EOF || ERROR
 	if (what & (BEV_EVENT_EOF|BEV_EVENT_ERROR)) {
+
+		//重试10次,失败则退出
 		if (retry_times >= 10) { // only try 10 times consecutively
 			debug(LOG_ERR, 
 				"have retry connect to xfrp server for %d times, exit!", 
@@ -829,20 +894,38 @@ static void connect_event_cb (struct bufferevent *bev, short what, void *ctx)
 		debug(LOG_ERR, "error: connect server [%s:%d] failed", 
 				c_conf->server_addr, 
 				c_conf->server_port);
+
+		//释放失败的control
 		free_control();
+
+		//继续初始化,开始重试
 		init_main_control();
 		start_base_connect();
 		close_main_control();
 	} else if (what & BEV_EVENT_CONNECTED) {
+
+		//状态是CONNECTED,重置retry
 		retry_times = 0;
 
+		// 设置新的bev, callback事件 
+		//void bufferevent_setcb(struct bufferevent *bufev,
+    	// bufferevent_data_cb readcb, bufferevent_data_cb writecb,
+    	// bufferevent_event_cb eventcb, void *cbarg)
+		//
+		// 设置read,write,event事件回调
+		//
+		// 最主要的事件在recv_cb回调中
 		// recv login-response message before recving othfer fprs messages, 
 		bufferevent_setcb(bev, recv_cb, NULL, connect_event_cb, NULL);
+
+		//开启读写,并持久Persist,不清除读写标志
 		bufferevent_enable(bev, EV_READ|EV_WRITE|EV_PERSIST);
-		
+
+		//如果tcp_mux,则构造init包,发送
 		if (get_common_config()->tcp_mux) 
 			open_connection_session(bev);
 
+		//登录
 		login();
 	}
 }
@@ -859,6 +942,7 @@ static void keep_control_alive()
 	set_ticker_ping_timer(main_ctl->ticker_ping);
 }
 
+//dns callback dns回调,对返回addr进行解析
 static void server_dns_cb(int event_code, struct evutil_addrinfo *addr, void *ctx)
 {
     if (event_code) {
@@ -887,9 +971,12 @@ static void server_dns_cb(int event_code, struct evutil_addrinfo *addr, void *ct
 void start_base_connect()
 {
 	struct common_conf *c_conf = get_common_config();
+
+	//连接proxy-server
 	main_ctl->connect_bev = connect_server(main_ctl->connect_base, 
 											c_conf->server_addr, 
 											c_conf->server_port);
+	//连接失败,则退出
 	if ( ! main_ctl->connect_bev) {
 		debug(LOG_ERR, 
 			"error: connect server [%s:%d] failed", 
@@ -899,7 +986,11 @@ void start_base_connect()
 	}
 
 	debug(LOG_INFO, "connect server [%s:%d]...", c_conf->server_addr, c_conf->server_port);
+
+	//连接成功后,开启bufferevent io的读写
 	bufferevent_enable(main_ctl->connect_bev, EV_WRITE|EV_READ);
+	//设置bufferevent io的callback回调, 实质内容都在connect_event_cb
+	//设置read,write事件为NULL,设置event事件为connect_event_cb
 	bufferevent_setcb(main_ctl->connect_bev, NULL, NULL, connect_event_cb, NULL);
 }
 
@@ -922,9 +1013,12 @@ void sync_iv(unsigned char *iv)
 	free_frame(f);
 }
 
+//发送登录请求
 void login()
 {
 	char *lg_msg = NULL;
+
+	//构造login请求的json串
 	int len = login_request_marshal(&lg_msg); //marshal login request
 	if ( ! lg_msg || ! len) {
 		debug(LOG_ERR, 
@@ -935,7 +1029,8 @@ void login()
 	// using sid = 3 is only for matching fprs, it will change after using tcp-mux
 	if (get_common_config()->tcp_mux)
 		sync_session_id(3); 
-	
+
+	//发送LoginType消息lg_msg到proxy-server
 	send_msg_frp_server(NULL, TypeLogin, lg_msg, len, main_ctl->session_id);
 	SAFE_FREE(lg_msg);
 }
@@ -966,6 +1061,7 @@ void send_msg_frp_server(struct bufferevent *bev,
 
 	debug(LOG_DEBUG, "send ----> [%c: %s]", type, msg);
 
+	//msg结构
 	struct message req_msg;
 	req_msg.data_p = NULL;
 	req_msg.type = type;
@@ -974,15 +1070,18 @@ void send_msg_frp_server(struct bufferevent *bev,
 	char frame_type = 0;
 	struct frame *f = NULL;
 
+	//构造新的frame
 	// frame_type not truely matter, it will reset by set_frame_cmd
 	f = new_frame(frame_type, sid); 
 	assert(f);
 
+	//json的string msg填入req_msg.data_p
 	if (msg) {
 		req_msg.data_p = strdup(msg);
 		assert(req_msg.data_p);
 	}
 
+	//消息进行pack
 	unsigned char *pack_buf = NULL;
 	size_t pack_buf_len = pack(&req_msg, &pack_buf);
 	if ( ! pack_buf_len || ! pack_buf) {
@@ -990,7 +1089,9 @@ void send_msg_frp_server(struct bufferevent *bev,
 		goto S_M_F_END;
 	}
 
+	//设置frame的长度为pack后数据长度
 	set_frame_len(f, (ushort) pack_buf_len);
+	//设置frame的data字段为pack数据
 	f->data = pack_buf;
 	
 	if (get_common_config()->tcp_mux) {
@@ -1011,6 +1112,8 @@ void send_msg_frp_server(struct bufferevent *bev,
 	}
 	
 	set_frame_cmd(f, frame_type);
+
+	//直接发送frame出去
 	request(bout, f);
 
 S_M_F_END:
@@ -1066,16 +1169,22 @@ void send_new_proxy(struct proxy_service *ps)
 
 void init_main_control()
 {
+	//主控
 	if (main_ctl && main_ctl->connect_base) {
 		event_base_loopbreak(main_ctl->connect_base);
 		free(main_ctl);
 	}
 
+	//主控初始化
 	main_ctl = calloc(sizeof(struct control), 1);
 	assert(main_ctl);
 
+	//conf
 	struct common_conf *c_conf = get_common_config();
+
+	//tcp mux
 	if (c_conf->tcp_mux) {
+		//会话id
 		uint32_t *sid = init_sid_index();
 		assert(sid);
 		main_ctl->session_id = *sid;
@@ -1085,6 +1194,8 @@ void init_main_control()
 
 	struct event_base *base = NULL;
 	struct evdns_base *dnsbase = NULL; 
+
+	//初始化event base, libevent
 	base = event_base_new();
 	if (! base) {
 		debug(LOG_ERR, "error: event base init failed!");
@@ -1092,6 +1203,7 @@ void init_main_control()
 	}
 	main_ctl->connect_base = base;
 
+	//初始化evdns base
 	dnsbase = evdns_base_new(base, 1);
 	if (! dnsbase) {
 		debug(LOG_ERR, "error: evdns base init failed!");
@@ -1099,8 +1211,10 @@ void init_main_control()
 	}
 	main_ctl->dnsbase = dnsbase;
 
+	//设置超时
 	evdns_base_set_option(dnsbase, "timeout", "1.0");
 
+	//设置dns
     // thanks to the following article
     // http://www.wuqiong.info/archives/13/
     evdns_base_set_option(dnsbase, "randomize-case:", "0");		//TurnOff DNS-0x20 encoding
@@ -1109,6 +1223,7 @@ void init_main_control()
     evdns_base_nameserver_ip_add(dnsbase, "223.6.6.6");			//AliDNS
 	evdns_base_nameserver_ip_add(dnsbase, "114.114.114.114");	//114DNS
 
+	//如果给定的是ip地址,直接返回,不需要进行dns解析
 	// if server_addr is ip, done control init.
 	if (is_valid_ip_address((const char *)c_conf->server_addr))
 		return;
@@ -1124,6 +1239,7 @@ void init_main_control()
 	hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
+	//dns查询动作,并设置callback动作->server_dns_cb;
 	dns_req = evdns_getaddrinfo(dnsbase, 
 							c_conf->server_addr, 
 							NULL /* no service name given */,
@@ -1144,6 +1260,7 @@ void close_main_control()
 	evdns_base_free(main_ctl->dnsbase, 0);
 }
 
+//主控循环
 void run_control() 
 {
 	start_base_connect();
