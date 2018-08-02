@@ -29,39 +29,39 @@
 #include "client.h"
 #include "common.h"
 
-#define FTP_RMT_CTL_PROXY_SUFFIX	"_ftp_remote_ctl_proxy"
+#define FTP_RMT_CTL_PROXY_SUFFIX "_ftp_remote_ctl_proxy"
 
-struct base_conf{
-	char	*name;
-	char	*auth_token;
-	int		use_encryption;
-	int		use_gzip;
-	int		privilege_mode;
-	char	*privilege_token;
-	int		pool_count;
-	char	*host_header_rewrite;
-	char	*subdomain;
+struct base_conf {
+    char *name;
+    char *auth_token;
+    int use_encryption;
+    int use_gzip;
+    int privilege_mode;
+    char *privilege_token;
+    int pool_count;
+    char *host_header_rewrite;
+    char *subdomain;
 };
 
 // common config
 struct common_conf {
-	char	*server_addr; 	/* default 0.0.0.0 */
-	char 	*server_ip;
-	int		server_port; 	/* default 7000 */
-	char	*http_proxy;
-	char	*log_file; 		/* default consol */
-	char	*log_way; 		/* default console */
-	char	*log_level; 	/* default info */
-	int		log_max_days;	/* default 3 */
-	char	*privilege_token;
-	char	*auth_token;
-	int		heartbeat_interval; /* default 10 */
-	int		heartbeat_timeout;	/* default 30 */
-	int 	tcp_mux;		/* default 0 */  // TCP 多路复用,高级
-	char	*user;
+    char *server_addr; /* default 0.0.0.0 */
+    char *server_ip;
+    int server_port; /* default 7000 */
+    char *http_proxy;
+    char *log_file;   /* default consol */
+    char *log_way;    /* default console */
+    char *log_level;  /* default info */
+    int log_max_days; /* default 3 */
+    char *privilege_token;
+    char *auth_token;
+    int heartbeat_interval;        /* default 10 */
+    int heartbeat_timeout;         /* default 30 */
+    int tcp_mux; /* default 0 */   // TCP 多路复用,高级
+    char *user;
 
-	/* private fields */
-	int 	is_router;	// to sign router (Openwrt/LEDE) or not
+    /* private fields */
+    int is_router;   // to sign router (Openwrt/LEDE) or not
 };
 
 struct common_conf *get_common_config();
@@ -78,4 +78,4 @@ char *get_ftp_data_proxy_name(const char *ftp_proxy_name);
 void set_common_server_ip(const char *ip);
 int is_running_in_router();
 
-#endif //_CONFIG_H_
+#endif   //_CONFIG_H_

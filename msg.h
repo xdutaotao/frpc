@@ -36,56 +36,56 @@
 #include "client.h"
 #include "common.h"
 
-#define TYPE_LEN 1 //byte, char
+#define TYPE_LEN 1   // byte, char
 
-#define MSG_TYPE_I 	0
-#define MSG_LEN_I 	1
-#define MSG_DATA_I	5
+#define MSG_TYPE_I 0
+#define MSG_LEN_I 1
+#define MSG_DATA_I 5
 
 // msg_type match frp v0.10.0
 enum msg_type {
-	TypeLogin         = 'o',
-	TypeLoginResp     = '1',
-	TypeNewProxy      = 'p',
-	TypeNewProxyResp  = '2',
-	TypeNewWorkConn   = 'w',
-	TypeReqWorkConn   = 'r',
-	TypeStartWorkConn = 's',
-	TypePing          = 'h',
-	TypePong          = '4',
-	TypeUdpPacket     = 'u',
+    TypeLogin         = 'o',
+    TypeLoginResp     = '1',
+    TypeNewProxy      = 'p',
+    TypeNewProxyResp  = '2',
+    TypeNewWorkConn   = 'w',
+    TypeReqWorkConn   = 'r',
+    TypeStartWorkConn = 's',
+    TypePing          = 'h',
+    TypePong          = '4',
+    TypeUdpPacket     = 'u',
 };
 
 struct general_response {
-	int		code;
-	char	*msg;
+    int code;
+    char *msg;
 };
 
 struct control_response {
-	int		type;
-	int		code;
-	char	*msg;
+    int type;
+    int code;
+    char *msg;
 };
 
 struct new_proxy_response {
-	char 	*run_id;
-	char 	*proxy_name;
-	char	*error;
-	int		remote_port;
+    char *run_id;
+    char *proxy_name;
+    char *error;
+    int remote_port;
 };
 
 struct work_conn {
-	char *run_id;
+    char *run_id;
 };
 
 struct message {
-	char 	type;
-	char	*data_p;
-	size_t	data_len;
+    char type;
+    char *data_p;
+    size_t data_len;
 };
 
 struct start_work_conn_resp {
-	char 	*proxy_name;
+    char *proxy_name;
 };
 
 int new_proxy_service_marshal(const struct proxy_service *np_req, char **msg);
@@ -109,4 +109,4 @@ int new_work_conn_marshal(const struct work_conn *work_c, char **msg);
 
 void control_response_free(struct control_response *res);
 
-#endif //_MSG_H_
+#endif   //_MSG_H_

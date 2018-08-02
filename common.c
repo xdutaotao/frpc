@@ -4,7 +4,7 @@
 uint64_t ntoh64(const uint64_t input)
 {
     uint64_t rval;
-    uint8_t *data = (uint8_t *)&rval;
+    uint8_t *data = (uint8_t *) &rval;
 
     data[0] = input >> 56;
     data[1] = input >> 48;

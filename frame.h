@@ -1,5 +1,5 @@
-#ifndef	_FRAME_H_
-#define	_FRAME_H_
+#ifndef _FRAME_H_
+#define _FRAME_H_
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,18 +15,18 @@
 
 // cmds
 enum cmd_type {
-	cmdSYN  = 0, 		// stream open
-	cmdFIN,             // stream close, a.k.a EOF mark
-	cmdPSH,             // data push
-	cmdNOP,             // no operation
+    cmdSYN = 0,   // stream open
+    cmdFIN,       // stream close, a.k.a EOF mark
+    cmdPSH,       // data push
+    cmdNOP,       // no operation
 };
 
 struct frame {
-	char ver;
-	char cmd;
-	ushort len;
-	uint32_t sid;
-	unsigned char *data;
+    char ver;
+    char cmd;
+    ushort len;
+    uint32_t sid;
+    unsigned char *data;
 };
 
 struct frame *new_frame(char cmd, uint32_t sid);
@@ -37,4 +37,4 @@ void set_frame_cmd(struct frame *f, char cmd);
 void set_frame_len(struct frame *f, ushort data_len);
 void free_frame(struct frame *f);
 
-#endif //_FRAME_H_
+#endif   //_FRAME_H_

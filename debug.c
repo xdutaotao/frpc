@@ -35,16 +35,11 @@
 #include "debug.h"
 
 debugconf_t debugconf = {
-    .debuglevel = LOG_INFO,
-    .log_stderr = 1,
-    .log_syslog = 0,
-    .syslog_facility = 0
-};
+    .debuglevel = LOG_INFO, .log_stderr = 1, .log_syslog = 0, .syslog_facility = 0};
 
 /** @internal
 Do not use directly, use the debug macro */
-void
-_debug(const char *filename, int line, int level, const char *format, ...)
+void _debug(const char *filename, int line, int level, const char *format, ...)
 {
     char buf[28];
     va_list vlist;
@@ -59,15 +54,15 @@ _debug(const char *filename, int line, int level, const char *format, ...)
         sigprocmask(SIG_BLOCK, &block_chld, NULL);
 
         if (level <= LOG_WARNING) {
-            fprintf(stderr, "[%d][%.24s][%u](%s:%d) ", level, ctime_r(&ts, buf), getpid(),
-                filename, line);
+            fprintf(stderr, "[%d][%.24s][%u](%s:%d) ", level, ctime_r(&ts, buf), getpid(), filename,
+                    line);
             va_start(vlist, format);
             vfprintf(stderr, format, vlist);
             va_end(vlist);
             fputc('\n', stderr);
         } else if (debugconf.log_stderr) {
-            fprintf(stderr, "[%d][%.24s][%u](%s:%d) ", level, ctime_r(&ts, buf), getpid(),
-                filename, line);
+            fprintf(stderr, "[%d][%.24s][%u](%s:%d) ", level, ctime_r(&ts, buf), getpid(), filename,
+                    line);
             va_start(vlist, format);
             vfprintf(stderr, format, vlist);
             va_end(vlist);
@@ -81,7 +76,7 @@ _debug(const char *filename, int line, int level, const char *format, ...)
             va_end(vlist);
             closelog();
         }
-        
+
         sigprocmask(SIG_UNBLOCK, &block_chld, NULL);
     }
 }

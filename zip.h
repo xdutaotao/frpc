@@ -27,9 +27,9 @@
 #ifndef _ZIP_H_
 #define _ZIP_H_
 
-#define CHUNK   16384  
-#define windowBits 		15
-#define GZIP_ENCODING 	16
+#define CHUNK 16384
+#define windowBits 15
+#define GZIP_ENCODING 16
 
 typedef unsigned char uint8;
 

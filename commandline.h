@@ -33,4 +33,4 @@ void parse_commandline(int, char **);
 
 int get_daemon_status();
 
-#endif                          /* _COMMANDLINE_H_ */
+#endif /* _COMMANDLINE_H_ */

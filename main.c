@@ -30,10 +30,10 @@
 
 int main(int argc, char **argv)
 {
-	//命令行解析
-	parse_commandline(argc, argv);
-	//初始化login信息
-	init_login();
-	//开启frpc的循环处理
-	xfrpc_loop();
+    //命令行解析
+    parse_commandline(argc, argv);
+    //初始化login信息
+    init_login();
+    //开启frpc的循环处理
+    xfrpc_loop();
 }

@@ -39,56 +39,56 @@ struct event;
 struct proxy_service;
 
 struct proxy_client {
-	struct event_base 	*base;
-	struct bufferevent	*ctl_bev;
-	struct bufferevent 	*local_proxy_bev;
-	struct event		*ev_timeout;
+    struct event_base *base;
+    struct bufferevent *ctl_bev;
+    struct bufferevent *local_proxy_bev;
+    struct event *ev_timeout;
 
-	struct base_conf	*bconf;
-	char	*local_ip;
-	int		local_port;
-	int		remote_port;
-	
-	char	*host_header_rewrite;
-	
-	//provate arguments
-	UT_hash_handle hh;
-	int						connected;
-	int 					work_started;
-	struct 	proxy_service 	*ps;
-	unsigned char			*data_tail; // storage untrated data
-	size_t					data_tail_size;
+    struct base_conf *bconf;
+    char *local_ip;
+    int local_port;
+    int remote_port;
+
+    char *host_header_rewrite;
+
+    // provate arguments
+    UT_hash_handle hh;
+    int connected;
+    int work_started;
+    struct proxy_service *ps;
+    unsigned char *data_tail;   // storage untrated data
+    size_t data_tail_size;
 };
 
 struct proxy_service {
-	char 	*proxy_name;
-	char 	*proxy_type;
-	char 	*ftp_cfg_proxy_name;
-	int 	use_encryption;
-	int		use_compression;
+    char *proxy_name;
+    char *proxy_type;
+    char *ftp_cfg_proxy_name;
+    int use_encryption;
+    int use_compression;
 
-	char	*local_ip;
-	int		remote_port;
-	int 	remote_data_port;
-	int 	local_port;
+    char *local_ip;
+    int remote_port;
+    int remote_data_port;
+    int local_port;
 
-	// http and https only
-	char 	*custom_domains;
-	char 	*subdomain;
-	char	*locations;
-	char	*host_header_rewrite;
-	char	*http_user;
-	char	*http_pwd;
+    // http and https only
+    char *custom_domains;
+    char *subdomain;
+    char *locations;
+    char *host_header_rewrite;
+    char *http_user;
+    char *http_pwd;
 
-	//provate arguments
-	UT_hash_handle hh;
+    // provate arguments
+    UT_hash_handle hh;
 };
 
 // after frp server accept client connection request
 // frp server send xfrp client NoticeUserConn request
 // when xfrp client receive that request, it will start
 // frp tunnel
-// if client has data-tail(not NULL), client value will be changed 
+// if client has data-tail(not NULL), client value will be changed
 void start_xfrp_tunnel(struct proxy_client *client);
 
 void del_proxy_client(struct proxy_client *client);
@@ -102,4 +102,4 @@ int send_client_data_tail(struct proxy_client *client);
 int is_ftp_proxy(const struct proxy_service *ps);
 struct proxy_client *new_proxy_client();
 
-#endif //_CLIENT_H_
+#endif   //_CLIENT_H_

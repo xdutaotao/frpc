@@ -29,4 +29,4 @@
 
 void xfrpc_loop();
 
-#endif //_XFRPC_H_
+#endif   //_XFRPC_H_
