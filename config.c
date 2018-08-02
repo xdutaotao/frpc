@@ -239,6 +239,8 @@ static void new_ftp_data_proxy_service(struct proxy_service *ftp_ps)
     free(ftp_data_proxy_name);
 }
 
+
+//proxy service conf处理
 static int proxy_service_handler(void *user, const char *sect, const char *nm, const char *value)
 {
     struct proxy_service *ps = NULL;
@@ -254,12 +256,14 @@ static int proxy_service_handler(void *user, const char *sect, const char *nm, c
 
     HASH_FIND_STR(p_services, section, ps);
     if (!ps) {
+		//读取新配置
         ps = new_proxy_service(section);
         if (!ps) {
             debug(LOG_ERR, "cannot create proxy service, it should not happenned!");
             exit(0);
         }
 
+		//增加proxy service
         HASH_ADD_KEYPTR(hh, p_services, ps->proxy_name, strlen(ps->proxy_name), ps);
     }
 
@@ -313,11 +317,15 @@ static int proxy_service_handler(void *user, const char *sect, const char *nm, c
     return 1;
 }
 
+
+//common分段的处理
 static int common_handler(void *user, const char *section, const char *name, const char *value)
 {
     struct common_conf *config = (struct common_conf *) user;
 
 #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+
+	//处理server addr
     if (MATCH("common", "server_addr")) {
         SAFE_FREE(config->server_addr);
         int addr_len        = strlen(value) + 1;
@@ -329,11 +337,11 @@ static int common_handler(void *user, const char *section, const char *name, con
         }
         if (is_valid_ip_address(value))
             set_common_server_ip(value);
-    } else if (MATCH("common", "server_port")) {
+    } else if (MATCH("common", "server_port")) { //server端口
         config->server_port = atoi(value);
-    } else if (MATCH("common", "http_proxy")) {
+    } else if (MATCH("common", "http_proxy")) { //http代理
         SAFE_FREE(config->http_proxy);
-        config->http_proxy = strdup(value);
+        config->http_proxy = strdup(value); //代理值
         assert(config->http_proxy);
     } else if (MATCH("common", "log_file")) {
         SAFE_FREE(config->log_file);

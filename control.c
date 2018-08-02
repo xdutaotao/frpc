@@ -58,6 +58,7 @@
 #include "common.h"
 #include "login.h"
 
+//全局主控
 static struct control *main_ctl;
 static int clients_conn_signel = 0;
 
@@ -79,6 +80,7 @@ static int client_connected(int is_connected)
     return clients_conn_signel;
 }
 
+//更新client工作状态
 static int set_client_work_start(struct proxy_client *client, int is_start_work)
 {
     if (is_start_work) {
@@ -90,6 +92,7 @@ static int set_client_work_start(struct proxy_client *client, int is_start_work)
     return client->work_started;
 }
 
+//状态检查
 static int is_client_work_started(struct proxy_client *client)
 {
     return client->work_started && client->ps;
@@ -103,6 +106,7 @@ static void client_start_event_cb(struct bufferevent *bev, short what, void *ctx
     assert(client);
     struct common_conf *c_conf = get_common_config();
 
+	//断开事件或者错误事件
     if (what & (BEV_EVENT_EOF | BEV_EVENT_ERROR)) {
         if (client->ctl_bev != bev) {
             debug(LOG_ERR, "Error: should be equal");
@@ -114,8 +118,15 @@ static void client_start_event_cb(struct bufferevent *bev, short what, void *ctx
         bufferevent_free(bev);
         free_proxy_client(client);
     } else if (what & BEV_EVENT_CONNECTED) {
+		//状态:连接上了
+
+		//新增recv_cb事件处理, 传入client作为client_start_event_cb/recv_cb的参数
         bufferevent_setcb(bev, recv_cb, NULL, client_start_event_cb, client);
+
+		//开启client bufferevent的读写事件
         bufferevent_enable(bev, EV_READ | EV_WRITE);
+
+		//发送workconn消息和cmdSYN给对端
         sync_new_work_connection(bev);
         debug(LOG_INFO, "proxy service start");
     }
@@ -152,6 +163,7 @@ static void new_client_connect()
     bufferevent_setcb(bev, NULL, NULL, client_start_event_cb, client);
 }
 
+//开启proxy serivce()
 static void start_proxy_services()
 {
     struct proxy_service *all_ps = get_all_proxy_services();
@@ -161,12 +173,15 @@ static void start_proxy_services()
 
     debug(LOG_INFO, "Start xfrp proxy services ...");
 
+	//遍历所有的服务
     HASH_ITER(hh, all_ps, ps, tmp)
     {
         if (ps == NULL) {
             debug(LOG_ERR, "proxy service is invalid!");
             return;
         }
+
+		//发送新的proxy服务
         send_new_proxy(ps);
     }
 }
@@ -304,6 +319,8 @@ static void pong(struct bufferevent *bev, struct frame *f)
     send_msg_frp_server(bev, TypePong, pong_msg, strlen(pong_msg), sid);
 }
 
+
+//同步新的work connection
 static void sync_new_work_connection(struct bufferevent *bev)
 {
     struct bufferevent *bout = NULL;
@@ -331,6 +348,8 @@ static void sync_new_work_connection(struct bufferevent *bev)
         SAFE_FREE(work_c);
         return;
     }
+
+	//构成work_connection_request_msg
     char *new_work_conn_request_message = NULL;
     int nret = new_work_conn_marshal(work_c, &new_work_conn_request_message);
     if (0 == nret) {
@@ -338,7 +357,10 @@ static void sync_new_work_connection(struct bufferevent *bev)
         return;
     }
 
+	//发送NewWorkConn请求给frps服务器
     send_msg_frp_server(bev, TypeNewWorkConn, new_work_conn_request_message, nret, f->sid);
+
+	//发送cmdSYN消息
     request(bout, f);
 
     free_frame(f);
@@ -388,16 +410,19 @@ static void hb_sender_cb(evutil_socket_t fd, short event, void *arg)
 // return: 0: raw succeed 1: raw failed
 static int proxy_service_resp_raw(struct new_proxy_response *npr)
 {
+	//检查error
     if (npr->error && strlen(npr->error) > 2) {
         debug(LOG_ERR, "error: new proxy response error_field:%s", npr->error);
         return 1;
     }
 
+	//检查proxy_name
     if ((!npr->proxy_name) || (strlen(npr->proxy_name) <= 0)) {
         debug(LOG_ERR, "error: new proxy response proxy name unmarshal failed!");
         return 1;
     }
 
+	//查找是否属于合法proxy_service
     struct proxy_service *ps = NULL;
     ps                       = get_proxy_service(npr->proxy_name);
     if (!ps) {
@@ -405,11 +430,13 @@ static int proxy_service_resp_raw(struct new_proxy_response *npr)
         return 1;
     }
 
+	//检查proxy_type
     if (!ps->proxy_type) {
         debug(LOG_ERR, "error: proxy_type is NULL, it should be never happend!");
         return 1;
     }
 
+	// ftp_cfg_proxy_name ftp类型
     if (ps->ftp_cfg_proxy_name) {
         struct proxy_service *main_ps = get_proxy_service(ps->ftp_cfg_proxy_name);
         if (main_ps) {
@@ -430,10 +457,10 @@ static int proxy_service_resp_raw(struct new_proxy_response *npr)
     return 0;
 }
 
-// msg为json消息字符串
+// msg为json消息字符串, 这里是原始的消息处理
 static void raw_message(struct message *msg, struct bufferevent *bev, struct proxy_client *client)
 {
-    if (client) {
+    if (client) {// 来自client的消息
         if (client->work_started) {
             debug(LOG_DEBUG, "raw client [%s] control message.", client->ps->proxy_name);
         }
@@ -467,11 +494,13 @@ static void raw_message(struct message *msg, struct bufferevent *bev, struct pro
             if (!is_logged) {
                 //登录失败,则重新调用login
                 debug(LOG_ERR, "xfrp login failed, try again!");
+				
                 login();
                 SAFE_FREE(lr);
                 return;
             }
 
+			//登录成功
             SAFE_FREE(lr);
             break;
 
@@ -495,19 +524,21 @@ static void raw_message(struct message *msg, struct bufferevent *bev, struct pro
             new_client_connect();
             break;
 
-        // NewProxyResp类型事件
+        // NewProxyResp类型事件, 上一个ReqWorkConn中初始会发送TypeNewProxy消息给frps服务器,这里收到返回
         case TypeNewProxyResp: {
             if (msg->data_p == NULL) {
                 debug(LOG_ERR, "recved TypeNewProxyResp but no data, it should be never happend!");
                 break;
             }
 
+			//从服务器回复中解出new_proxy_resp消息
             struct new_proxy_response *npr = new_proxy_resp_unmarshal(msg->data_p);
             if (npr == NULL) {
                 debug(LOG_ERR, "new proxy response buffer unmarshal faild!");
                 return;
             }
 
+			//proxy_service_resp消息检查
             proxy_service_resp_raw(npr);
 
             SAFE_FREE(npr);
@@ -516,6 +547,13 @@ static void raw_message(struct message *msg, struct bufferevent *bev, struct pro
 
         // StartWorkConn类型事件
         case TypeStartWorkConn:  //创建一个frp tunnel
+
+			//TODO: 这个消息只能从client bufferevent来
+        	if(client == NULL){
+				break;
+			}	
+
+			//解开StartWorkConn的消息体
             sr = start_work_conn_resp_unmarshal(msg->data_p);
             if (!sr) {
                 debug(LOG_ERR, "TypeStartWorkConn unmarshal failed, it should never be happend!");
@@ -532,15 +570,16 @@ static void raw_message(struct message *msg, struct bufferevent *bev, struct pro
                 break;
             }
 
-			// proxy client proxy service设置
+			// 如果有这个服务,则为相应client->ps赋值proxy service
             client->ps = ps;
             debug(LOG_INFO, "proxy service [%s] [%s:%d] start work connection.", sr->proxy_name,
                   ps->local_ip, ps->local_port);
 
-			// 启动client tunnel
+			// 服务器发送过来一个请求,来启动client tunnel, 注意proxy serivce已经确定了
+			// 启动连接到frps服务器到本地端口服务连接之间的tunnel
             start_xfrp_tunnel(client);
 
-			// client tunnel 开始工作
+			//设置此client开始工作
             set_client_work_start(client, 1);
             break;
 
@@ -555,11 +594,12 @@ static void raw_message(struct message *msg, struct bufferevent *bev, struct pro
     SAFE_FREE(sr);
 }
 
-//数据handler
+//数据handler, 直接处理数据段
 static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *client)
 {
     struct bufferevent *bev = NULL;
     if (client) {
+		//如果client非空,则表示由client bufferevent接收处理
         debug(LOG_DEBUG, "client(%s): recved control data",
               is_client_work_started(client) ? "work" : "free");
 
@@ -583,15 +623,18 @@ static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *
 
     int min_buf_len = 0;
     if (get_common_config()->tcp_mux) {   // TCP 多路复用
+
+		//先取出session帧
         f           = raw_frame(buf, len);
         min_buf_len = get_header_size();
     } else {
 
-        //直接读取frame
+        //如果直接是数据帧,则直接读取frame
         f = raw_frame_only_msg(buf, len);
         set_frame_cmd(f, cmdPSH);
     }
 
+	//检查frame是否空
     if (f == NULL) {
         debug(LOG_ERR, "raw_frame faild!");
         goto DATA_H_END;
@@ -605,8 +648,10 @@ static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *
     }
 #endif   // USEENCRYPTION
 
+	//检查长度是否满足条件
     if (len <= min_buf_len) {
-        if (f->cmd == 3) {
+        if (f->cmd == cmdNOP) {  //TODO: 这里需要改成cmdNOP
+			//返回一个空NOP包
             base_control_ping(bev);
         }
         goto DATA_H_END;
@@ -668,8 +713,10 @@ static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *
     printf("\n\n");
 #endif   // ENCRYPTO
 
-    if (!ret_buf)
+    if (!ret_buf){
+		//表示未加密,则直接取frame->data域
         ret_buf = f->data;   // test: no crypto
+    }
 
     struct message *msg = NULL;
     switch (f->cmd) {
@@ -683,12 +730,13 @@ static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *
 
             //实际数据push过来了,先unpack
             msg = unpack(ret_buf, f->len);
-            if (!(msg && msg->data_p)) {
+            if (!(msg && msg->data_p)) { // msg有问题,忽略此消息
                 debug(LOG_ERR, "message received format invalid");
                 goto DATA_H_END;
             }
             debug(LOG_DEBUG, "recv <---- %c: %s", msg->type, msg->data_p);
 
+			//TODO: 这里有内存泄漏,需要safe_free(msg)
             if (msg->data_p == NULL)
                 goto DATA_H_END;
 
@@ -699,14 +747,19 @@ static size_t data_handler(unsigned char *buf, ushort len, struct proxy_client *
             break;
     }
 
-    SAFE_FREE(msg);
+    
 
 DATA_H_END:
+	//TODO: 移到这里来好了
+	SAFE_FREE(msg);
+	
     free_frame(f);
 
     return len;
 }
 
+
+// 同上, ctx==NULL,表示调用从common ctrl来, ctx != NULL表示调用从client peer来
 // ctx: if recv_cb was called by common control, ctx is NULL
 //		when ctx is not NULL it was called by client struct
 static unsigned char *multy_recv_buffer_raw(unsigned char *buf, size_t buf_len, size_t *ret_len,
@@ -721,8 +774,10 @@ static unsigned char *multy_recv_buffer_raw(unsigned char *buf, size_t buf_len, 
 
     *ret_len = 0;
 
-    if (ctx) {
+    if (ctx) { //ctx非空,客户端callback
         struct proxy_client *client = (struct proxy_client *) ctx;
+
+		//如果客户端已经开始工作,则直接返回
         if (is_client_work_started(client)) {
             debug(LOG_DEBUG, "client [%s] send all work data to proxy tunnel.",
                   client->ps->proxy_name);
@@ -731,15 +786,17 @@ static unsigned char *multy_recv_buffer_raw(unsigned char *buf, size_t buf_len, 
     }
 
     for (;;) {
-        if (buf_len > split_lv) {
+        if (buf_len > split_lv) { //解析数据,判断长度是否有效
             if (!is_logged()) {
-                if (buf[0] == 49) {
+				//如果未登陆
+                if (buf[0] == TypeLoginResp) { //49是登录请求的回应
                     msg_size_t data_len_bigend;
                     data_len_bigend     = *(msg_size_t *) (buf + MSG_LEN_I);
                     msg_size_t data_len = msg_ntoh(data_len_bigend);
 
                     split_len = raw_static_size + data_len;
                     splited   = 1;
+					//分离出LoginResp数据段,直接break出来处理
                     break;
                 }
             }
@@ -759,7 +816,9 @@ static unsigned char *multy_recv_buffer_raw(unsigned char *buf, size_t buf_len, 
 #endif   // USEENCRYPTION
 
             if (!splited) {   // ordinary message split
+            	//未分离
                 char msg_type  = buf[0];
+				//类型检查
                 int type_valid = msg_type_valid_check(msg_type);
                 if (type_valid) {
                     msg_size_t data_len_bigend;
@@ -769,6 +828,7 @@ static unsigned char *multy_recv_buffer_raw(unsigned char *buf, size_t buf_len, 
                     split_len = raw_static_size + data_len;
                     splited   = 1;
                 } else {
+					//类型检查错误
                     debug(LOG_ERR, "buffer type [%c] raw failed!", msg_type);
                 }
                 break;
@@ -778,30 +838,38 @@ static unsigned char *multy_recv_buffer_raw(unsigned char *buf, size_t buf_len, 
     }
 
     if (!splited) {
-        //数据为分离,可以直接handler
+        //数据未分离,直接处理返回
         data_handler(buf, buf_len, ctx);
         *ret_len = 0;
         return NULL;
 
     } else if (split_len) {
+		//数据分离过了,将分离过的数据拷贝到raw_buf
         raw_buf = calloc(1, split_len);
         assert(raw_buf);
         memcpy(raw_buf, buf, split_len);
     }
 
     if (split_len != 0 && raw_buf != NULL) {
+
+		//处理分离出的数据段
         data_handler(raw_buf, split_len, ctx);
         free(raw_buf);
+
+		//剩余数据段
         *ret_len = buf_len - split_len;
         if (split_len < buf_len) {
             unraw_buf_p = buf + split_len;
         }
     }
 
+	//返回未处理的分段
     return unraw_buf_p;
 }
 
 // 非常重要的recv_cb回调事件
+// 如果ctx为NULL,表示数据callback从common ctrl来
+// 如果ctx非空,表示数据callback从client回调来的
 // ctx: if recv_cb was called by common control, ctx == NULL
 //		else ctx == client struct
 static void recv_cb(struct bufferevent *bev, void *ctx)
@@ -1017,6 +1085,8 @@ void start_base_connect()
     bufferevent_setcb(main_ctl->connect_bev, NULL, NULL, connect_event_cb, NULL);
 }
 
+
+//加密同步iv init-vector
 void sync_iv(unsigned char *iv)
 {
     struct frame *f = new_frame(cmdPSH, main_ctl->session_id);
@@ -1168,7 +1238,7 @@ void start_login_frp_server(struct event_base *base)
     bufferevent_setcb(bev, NULL, NULL, connect_event_cb, NULL);
 }
 
-
+//向frps服务器发送NewProxy消息,请求开一个Proxy服务
 void send_new_proxy(struct proxy_service *ps)
 {
     if (!ps) {
@@ -1178,12 +1248,15 @@ void send_new_proxy(struct proxy_service *ps)
     debug(LOG_DEBUG, "control proxy client: [%s]", ps->proxy_name);
 
     char *new_proxy_msg = NULL;
+
+	//构造新的proxy_service消息json字符串
     int len             = new_proxy_service_marshal(ps, &new_proxy_msg);
     if (!new_proxy_msg) {
         debug(LOG_ERR, "proxy service request marshal failed");
         return;
     }
 
+	//向Server主控发送TypeNewProxy消息结构
     send_msg_frp_server(NULL, TypeNewProxy, new_proxy_msg, len, main_ctl->session_id);
     SAFE_FREE(new_proxy_msg);
 }

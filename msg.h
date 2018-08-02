@@ -44,15 +44,15 @@
 
 // msg_type match frp v0.10.0
 enum msg_type {
-    TypeLogin         = 'o',
-    TypeLoginResp     = '1',
-    TypeNewProxy      = 'p',
-    TypeNewProxyResp  = '2',
-    TypeNewWorkConn   = 'w',
-    TypeReqWorkConn   = 'r',
-    TypeStartWorkConn = 's',
-    TypePing          = 'h',
-    TypePong          = '4',
+    TypeLogin         = 'o',	//登录请求
+    TypeLoginResp     = '1',	//登录请求回应
+    TypeNewProxy      = 'p',	//新Proxy消息
+    TypeNewProxyResp  = '2',	//新Proxy回应
+    TypeNewWorkConn   = 'w', 	//新WorkConn消息 ?
+    TypeReqWorkConn   = 'r',	//请求WorkConn ?
+    TypeStartWorkConn = 's',	//开始WorkConn ?
+    TypePing          = 'h',	//PING
+    TypePong          = '4',	//PONG
     TypeUdpPacket     = 'u',
 };
 

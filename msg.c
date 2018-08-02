@@ -180,6 +180,8 @@ size_t login_request_marshal(char **msg)
     return nret;
 }
 
+
+//构造新的proxy_service消息体
 int new_proxy_service_marshal(const struct proxy_service *np_req, char **msg)
 {
     const char *tmp              = NULL;
@@ -188,15 +190,21 @@ int new_proxy_service_marshal(const struct proxy_service *np_req, char **msg)
     if (!j_np_req)
         return 0;
 
+	//proxy name
     JSON_MARSHAL_TYPE(j_np_req, "proxy_name", string, np_req->proxy_name);
+	//proxy type
     JSON_MARSHAL_TYPE(j_np_req, "proxy_type", string, np_req->proxy_type);
+	//是否需要加密
     JSON_MARSHAL_TYPE(j_np_req, "use_encryption", boolean, np_req->use_encryption);
+	//是否压缩
     JSON_MARSHAL_TYPE(j_np_req, "use_compression", boolean, np_req->use_compression);
 
+	//是否属于ftp代理, 需要加上remote_data_port结构
     if (is_ftp_proxy(np_req)) {
         JSON_MARSHAL_TYPE(j_np_req, "remote_data_port", int, np_req->remote_data_port);
     }
 
+	//自定义domain
     if (np_req->custom_domains) {
         fill_custom_domains(j_np_req, np_req->custom_domains);
         json_object_object_add(j_np_req, "remote_port", NULL);
@@ -209,8 +217,10 @@ int new_proxy_service_marshal(const struct proxy_service *np_req, char **msg)
         }
     }
 
+	//子域名
     JSON_MARSHAL_TYPE(j_np_req, "subdomain", string, SAFE_JSON_STRING(np_req->subdomain));
 
+	//array
     json_object *j_location_array = json_object_new_array();
     if (np_req->locations) {
         json_object_object_add(j_np_req, "locations", j_location_array);
@@ -218,11 +228,15 @@ int new_proxy_service_marshal(const struct proxy_service *np_req, char **msg)
         json_object_object_add(j_np_req, "locations", NULL);
     }
 
+	//host_header_rewrite
     JSON_MARSHAL_TYPE(j_np_req, "host_header_rewrite", string,
                       SAFE_JSON_STRING(np_req->host_header_rewrite));
+	//http_user
     JSON_MARSHAL_TYPE(j_np_req, "http_user", string, SAFE_JSON_STRING(np_req->http_user));
+	//http_pwd
     JSON_MARSHAL_TYPE(j_np_req, "http_pwd", string, SAFE_JSON_STRING(np_req->http_pwd));
 
+	//转成json字符串
     tmp = json_object_to_json_string(j_np_req);
     if (tmp && strlen(tmp) > 0) {
         nret = strlen(tmp);
@@ -234,6 +248,7 @@ int new_proxy_service_marshal(const struct proxy_service *np_req, char **msg)
     return nret;
 }
 
+//新建一个work connection的消息
 int new_work_conn_marshal(const struct work_conn *work_c, char **msg)
 {
     const char *tmp                     = NULL;
@@ -255,6 +270,8 @@ int new_work_conn_marshal(const struct work_conn *work_c, char **msg)
     return nret;
 }
 
+
+// new_proxy_resp 消息解析
 // result returned of this func need be free
 struct new_proxy_response *new_proxy_resp_unmarshal(const char *jres)
 {
@@ -265,6 +282,8 @@ struct new_proxy_response *new_proxy_resp_unmarshal(const char *jres)
     struct new_proxy_response *npr = calloc(1, sizeof(struct new_proxy_response));
     assert(npr);
 
+	//frps服务器会回run_id/remote_port/proxy_name/error_info
+	// 将这些消息填入new_proxy_response结构体
     struct json_object *npr_run_id = NULL;
     if (!json_object_object_get_ex(j_np_res, "run_id", &npr_run_id))
         goto END_ERROR;
@@ -293,6 +312,8 @@ END_ERROR:
     return npr;
 }
 
+
+// 从login_resp的字符串中解析出login_resp结构体
 // login_resp_unmarshal NEED FREE
 struct login_resp *login_resp_unmarshal(const char *jres)
 {
@@ -303,18 +324,21 @@ struct login_resp *login_resp_unmarshal(const char *jres)
     struct login_resp *lr = calloc(1, sizeof(struct login_resp));
     assert(lr);
 
+	//拿到version
     struct json_object *l_version = NULL;
     if (!json_object_object_get_ex(j_lg_res, "version", &l_version))
         goto END_ERROR;
     lr->version = strdup(json_object_get_string(l_version));
     assert(lr->version);
 
+	//拿到run_id
     struct json_object *l_run_id = NULL;
     if (!json_object_object_get_ex(j_lg_res, "run_id", &l_run_id))
         goto END_ERROR;
     lr->run_id = strdup(json_object_get_string(l_run_id));
     assert(lr->run_id);
 
+	//拿到error info
     struct json_object *l_error = NULL;
     if (!json_object_object_get_ex(j_lg_res, "error", &l_error))
         goto END_ERROR;
@@ -398,12 +422,14 @@ int msg_type_valid_check(char msg_type)
     return 0;
 }
 
+// 仅仅处理类型正确的消息,从frame->data中构造出message消息体
 // only handle recved message with right message type
 struct message *unpack(unsigned char *recv_msg, const ushort len)
 {
     struct message *msg = new_message();
     msg->type           = *(recv_msg + MSG_TYPE_I);
 
+	//检查type是否正确
     if (!msg_type_valid_check(msg->type)) {
         debug(LOG_ERR, "message recved type is invalid!");
         return NULL;
@@ -413,6 +439,7 @@ struct message *unpack(unsigned char *recv_msg, const ushort len)
     data_len_bigend = *(msg_size_t *) (recv_msg + MSG_LEN_I);
     msg->data_len   = msg_ntoh(data_len_bigend);
 
+	//构造msg
     if (msg->data_len > 0) {
         msg->data_p = calloc(msg->data_len + 1, 1);
         assert(msg->data_p);

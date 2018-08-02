@@ -28,6 +28,7 @@ struct frame *new_frame(char cmd, uint32_t sid)
     return f;
 }
 
+// 从buf中解析出frame结构
 // f->len is rawed in this func
 struct frame *raw_frame(unsigned char *buf, const size_t buf_len)
 {
@@ -37,8 +38,9 @@ struct frame *raw_frame(unsigned char *buf, const size_t buf_len)
     }
     char ver     = buf[VERI];
     char cmd     = buf[CMDI];
-    uint32_t sid = htonl(*(uint32_t *) (buf + SIDI));
+    uint32_t sid = htonl(*(uint32_t *) (buf + SIDI));  //纳尼? 不是ntohl() ??
 
+	//构造新的frame帧结构
     struct frame *f = new_frame(cmd, sid);
     f->ver          = ver;
     f->len          = *(ushort *) (buf + LENI);

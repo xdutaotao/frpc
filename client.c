@@ -209,7 +209,7 @@ void start_xfrp_tunnel(struct proxy_client *client)
         return;
     }
 
-	//连接proxy server, proxy-service的ip和端口
+	//连接proxy service配置的对应的本地ip和本地的端口,比如ssh,本地ip:22端口
     client->local_proxy_bev = connect_server(base, ps->local_ip, ps->local_port);
 
 	//返回client对应的bufferevent
@@ -222,26 +222,31 @@ void start_xfrp_tunnel(struct proxy_client *client)
     debug(LOG_DEBUG, "proxy server [%s:%d] <---> client [%s:%d]", c_conf->server_addr,
           ps->remote_port, ps->local_ip ? ps->local_ip : "::1", ps->local_port);
 
-	//基于
+	//连接到服务器的bufferevent建立一个proxy结构
     struct proxy *ctl_prox   = new_proxy_buf(client->ctl_bev);
 
-	//基于本地新建一个proxy
+	//连接到本地的bufferevent新建一个proxy结构
     struct proxy *local_prox = new_proxy_buf(client->local_proxy_bev);
     bufferevent_data_cb proxy_s2c_cb, proxy_c2s_cb;
+
+	//ftp服务的特殊处理
     if (is_ftp_proxy(client->ps)) {
         proxy_c2s_cb               = ftp_proxy_c2s_cb;
         proxy_s2c_cb               = ftp_proxy_s2c_cb;
         ctl_prox->remote_data_port = client->ps->remote_data_port;
         ctl_prox->proxy_name       = strdup(ps->proxy_name);
     } else {
+		//设置proxy_c2s proxy_s2c的数据通道的回调函数
         proxy_c2s_cb = tcp_proxy_c2s_cb;
         proxy_s2c_cb = tcp_proxy_s2c_cb;
     }
 
+	//设置client到server的读和事件callback
     bufferevent_setcb(client->ctl_bev, proxy_s2c_cb, NULL, xfrp_event_cb, local_prox);
-
+	//设置client与本地之间的读和事件callback
     bufferevent_setcb(client->local_proxy_bev, proxy_c2s_cb, NULL, xfrp_event_cb, ctl_prox);
 
+	//开启读写
     bufferevent_enable(client->ctl_bev, EV_READ | EV_WRITE);
     bufferevent_enable(client->local_proxy_bev, EV_READ | EV_WRITE);
 }
