@@ -19,6 +19,7 @@
 #include "proxy.h"
 #include "config.h"
 
+//基于传入的bufferevent新建一个proxy结构
 struct proxy *new_proxy_buf(struct bufferevent *bev)
 {
     struct proxy *p = (struct proxy *) calloc(1, sizeof(struct proxy));

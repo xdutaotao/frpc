@@ -40,8 +40,8 @@ struct proxy_service;
 
 struct proxy_client {
     struct event_base *base;
-    struct bufferevent *ctl_bev;
-    struct bufferevent *local_proxy_bev;
+    struct bufferevent *ctl_bev;	//
+    struct bufferevent *local_proxy_bev;	//
     struct event *ev_timeout;
 
     struct base_conf *bconf;

@@ -95,6 +95,8 @@ static int is_client_work_started(struct proxy_client *client)
     return client->work_started && client->ps;
 }
 
+
+//客户端开启事件回调callback
 static void client_start_event_cb(struct bufferevent *bev, short what, void *ctx)
 {
     struct proxy_client *client = ctx;
@@ -119,12 +121,17 @@ static void client_start_event_cb(struct bufferevent *bev, short what, void *ctx
     }
 }
 
+
+//新的client连接
 static void new_client_connect()
 {
+	//新建一个client信息结构
     struct proxy_client *client = new_proxy_client();
     struct common_conf *c_conf  = get_common_config();
     assert(c_conf);
     client->base = main_ctl->connect_base;
+
+	//连接服务器ip:port
     struct bufferevent *bev =
         connect_server(client->base, c_conf->server_addr, c_conf->server_port);
     if (!bev) {
@@ -135,8 +142,13 @@ static void new_client_connect()
     debug(LOG_INFO, "work connection: connect server [%s:%d] ......", c_conf->server_addr,
           c_conf->server_port);
 
+	//设置这个client对应的bufferevent为新建立的连接的bufferevent
     client->ctl_bev = bev;
+
+	//开启可写事件
     bufferevent_enable(bev, EV_WRITE);
+
+	//客户端事件
     bufferevent_setcb(bev, NULL, NULL, client_start_event_cb, client);
 }
 
@@ -203,17 +215,20 @@ static size_t request(struct bufferevent *bev, struct frame *f)
     if (0 == write_len)
         return 0;
 
-    //直接发送data数据
+    //直接调用bufferevent往对应的ev发送数据
     bufferevent_write(bout, f->data, write_len);
     return write_len;
 }
 
+
+//
 static void base_control_ping(struct bufferevent *bev)
 {
     if (!is_client_connected())
         return;
 
     struct bufferevent *bout = NULL;
+	//如果传入bufferevent，则用传入的bufferevent，否则直接往主控bufferevent发送
     if (bev) {
         bout = bev;
     } else {
@@ -225,6 +240,7 @@ static void base_control_ping(struct bufferevent *bev)
         return;
     }
 
+	//构造NOP包来ping-pong
     struct frame *f = new_frame(cmdNOP, 0);   // ping sid is 0
     assert(f);
 
@@ -232,6 +248,7 @@ static void base_control_ping(struct bufferevent *bev)
     free_frame(f);
 }
 
+//发送ping
 static void ping(struct bufferevent *bev)
 {
     struct bufferevent *bout = NULL;
@@ -256,9 +273,12 @@ static void ping(struct bufferevent *bev)
 
     uint32_t sid   = get_main_control()->session_id;
     char *ping_msg = "{}";
+
+	//发送TypePing类型包
     send_msg_frp_server(bev, TypePing, ping_msg, strlen(ping_msg), sid);
 }
 
+//回送PONG
 static void pong(struct bufferevent *bev, struct frame *f)
 {
     struct bufferevent *bout = NULL;
@@ -355,10 +375,13 @@ static void set_ticker_ping_timer(struct event *timeout)
 
 static void hb_sender_cb(evutil_socket_t fd, short event, void *arg)
 {
+	//主控keepalive ping-pong
     base_control_ping(NULL);
+	//如果client连接，则ping
     if (is_client_connected())
         ping(NULL);
 
+	//设置下一次timer事件
     set_ticker_ping_timer(main_ctl->ticker_ping);
 }
 
@@ -452,14 +475,16 @@ static void raw_message(struct message *msg, struct bufferevent *bev, struct pro
             SAFE_FREE(lr);
             break;
 
-        // ReqWorkConn类型事件
-        case TypeReqWorkConn:
+        // ReqWorkConn类型事件 
+        case TypeReqWorkConn: //请求WorkConnection
+
+			//如果没有client连上来，表示本地的proxy服务没有开启，那么需要先开启下
             if (!is_client_connected()) {
 
                 //开启proxy services
                 start_proxy_services();
 
-                //
+                //设置client已经连上
                 client_connected(1);
 
                 //发送PING消息
@@ -490,13 +515,14 @@ static void raw_message(struct message *msg, struct bufferevent *bev, struct pro
         }
 
         // StartWorkConn类型事件
-        case TypeStartWorkConn:
+        case TypeStartWorkConn:  //创建一个frp tunnel
             sr = start_work_conn_resp_unmarshal(msg->data_p);
             if (!sr) {
                 debug(LOG_ERR, "TypeStartWorkConn unmarshal failed, it should never be happend!");
                 break;
             }
 
+			//寻找是否已经有此服务
             struct proxy_service *ps = get_proxy_service(sr->proxy_name);
             if (!ps) {
                 debug(LOG_ERR,
@@ -506,11 +532,15 @@ static void raw_message(struct message *msg, struct bufferevent *bev, struct pro
                 break;
             }
 
+			// proxy client proxy service设置
             client->ps = ps;
             debug(LOG_INFO, "proxy service [%s] [%s:%d] start work connection.", sr->proxy_name,
                   ps->local_ip, ps->local_port);
 
+			// 启动client tunnel
             start_xfrp_tunnel(client);
+
+			// client tunnel 开始工作
             set_client_work_start(client, 1);
             break;
 
@@ -785,7 +815,7 @@ static void recv_cb(struct bufferevent *bev, void *ctx)
         return;
     }
 
-    //如果长度len==0呢, 这里感觉有个bug
+    //如果长度len==0呢, 这里感觉有个bug， 直接在上面的判断中加 <= 0
 
     //构造buffer缓冲
     unsigned char *buf = calloc(1, len);
@@ -808,6 +838,7 @@ static void recv_cb(struct bufferevent *bev, void *ctx)
         for (; raw_buf_p && read_n;) {
 // #define CONN_DEBUG 1
 #ifdef CONN_DEBUG
+			//打印raw数据
             unsigned int i = 0;
             char *dbg_buf  = calloc(1, read_n * 4 + 1);
             assert(dbg_buf);
@@ -818,8 +849,10 @@ static void recv_cb(struct bufferevent *bev, void *ctx)
             SAFE_FREE(dbg_buf);
 #endif   // CONN_DEBUG
 
-            //
+            //进行数据处理，返回剩余部分数据
             raw_buf_p = multy_recv_buffer_raw(raw_buf_p, read_n, &ret_len, client);
+
+			//剩余未处理部分
             read_n    = ret_len;
 
             if (ctx && is_client_work_started(client) && raw_buf_p && ret_len) {
@@ -827,10 +860,16 @@ static void recv_cb(struct bufferevent *bev, void *ctx)
                 debug(LOG_WARNING, "warning: data recved from frps is not split clear");
                 unsigned char *dtail = calloc(1, read_n);
                 assert(dtail);
+
+				//拷贝剩余数据
                 memcpy(dtail, raw_buf_p, read_n);
                 client->data_tail      = dtail;
                 client->data_tail_size = ret_len;
+
+				//将剩余数据发送到client
                 send_client_data_tail(client);
+
+				//清理
                 SAFE_FREE(dtail);
                 client->data_tail      = NULL;
                 client->data_tail_size = 0;
@@ -898,6 +937,7 @@ static void connect_event_cb(struct bufferevent *bev, short what, void *ctx)
         // 设置read,write,event事件回调
         //
         // 最主要的事件在recv_cb回调中
+        // 增加recv_cb到connect bufferevent中
         // recv login-response message before recving othfer fprs messages,
         bufferevent_setcb(bev, recv_cb, NULL, connect_event_cb, NULL);
 
@@ -915,6 +955,7 @@ static void connect_event_cb(struct bufferevent *bev, short what, void *ctx)
 
 static void keep_control_alive()
 {
+	//新建一个ev timer事件
     main_ctl->ticker_ping = evtimer_new(main_ctl->connect_base, hb_sender_cb, NULL);
     if (!main_ctl->ticker_ping) {
         debug(LOG_ERR, "Ping Ticker init failed!");
@@ -951,11 +992,13 @@ static void server_dns_cb(int event_code, struct evutil_addrinfo *addr, void *ct
     }
 }
 
+
+//连接到server的ip:port
 void start_base_connect()
 {
     struct common_conf *c_conf = get_common_config();
 
-    //连接proxy-server
+    //连接server,connect_bev存入主控结构
     main_ctl->connect_bev =
         connect_server(main_ctl->connect_base, c_conf->server_addr, c_conf->server_port);
     //连接失败,则退出
@@ -1024,6 +1067,8 @@ void sync_session_id(uint32_t sid)
     SAFE_FREE(f);
 }
 
+
+//向bev发送type类型数据包，消息体是json字符串格式，没有进行消息pack
 void send_msg_frp_server(struct bufferevent *bev, const enum msg_type type, const char *msg,
                          const size_t msg_len, uint32_t sid)
 {
@@ -1070,7 +1115,7 @@ void send_msg_frp_server(struct bufferevent *bev, const enum msg_type type, cons
     //设置frame的data字段为pack数据
     f->data = pack_buf;
 
-    if (get_common_config()->tcp_mux) {
+    if (get_common_config()->tcp_mux) { //多路复用
         switch (type) {
             case TypeLogin:
             case TypePong:
@@ -1083,7 +1128,7 @@ void send_msg_frp_server(struct bufferevent *bev, const enum msg_type type, cons
                 break;
         }
     } else {
-        frame_type = cmdPSH;
+        frame_type = cmdPSH; //非多路，直接PUSH类型
     }
 
     set_frame_cmd(f, frame_type);
@@ -1103,9 +1148,12 @@ struct control *get_main_control()
     return main_ctl;
 }
 
+//登录frp server, 似乎跟start_base_connect重复了???(应该是重复了)
 void start_login_frp_server(struct event_base *base)
 {
     struct common_conf *c_conf = get_common_config();
+
+	//登录server ip:port
     struct bufferevent *bev    = connect_server(base, c_conf->server_addr, c_conf->server_port);
     if (!bev) {
         debug(LOG_DEBUG, "Connect server [%s:%d] failed", c_conf->server_addr, c_conf->server_port);
@@ -1116,8 +1164,10 @@ void start_login_frp_server(struct event_base *base)
           c_conf->server_port);
 
     bufferevent_enable(bev, EV_WRITE | EV_READ);
+	//设置connect事件回调
     bufferevent_setcb(bev, NULL, NULL, connect_event_cb, NULL);
 }
+
 
 void send_new_proxy(struct proxy_service *ps)
 {

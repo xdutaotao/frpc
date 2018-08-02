@@ -326,6 +326,7 @@ END_ERROR:
     return lr;
 }
 
+//解析新建frp tunnel的消息体
 struct start_work_conn_resp *start_work_conn_resp_unmarshal(const char *resp_msg)
 {
     struct json_object *j_start_w_res = json_tokener_parse(resp_msg);
@@ -339,6 +340,7 @@ struct start_work_conn_resp *start_work_conn_resp_unmarshal(const char *resp_msg
     if (!json_object_object_get_ex(j_start_w_res, "proxy_name", &pn))
         goto START_W_C_R_END;
 
+	//设置proxy-name
     sr->proxy_name = strdup(json_object_get_string(pn));
     assert(sr->proxy_name);
 

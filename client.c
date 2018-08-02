@@ -180,6 +180,8 @@ int is_ftp_proxy(const struct proxy_service *ps)
     return 0;
 }
 
+
+//创建一个frp tunnel
 // create frp tunnel for service
 void start_xfrp_tunnel(struct proxy_client *client)
 {
@@ -207,7 +209,10 @@ void start_xfrp_tunnel(struct proxy_client *client)
         return;
     }
 
+	//连接proxy server, proxy-service的ip和端口
     client->local_proxy_bev = connect_server(base, ps->local_ip, ps->local_port);
+
+	//返回client对应的bufferevent
     if (!client->local_proxy_bev) {
         debug(LOG_ERR, "frpc tunnel connect local proxy port [%d] failed!", ps->local_port);
         bufferevent_free(client->ctl_bev);
@@ -217,7 +222,10 @@ void start_xfrp_tunnel(struct proxy_client *client)
     debug(LOG_DEBUG, "proxy server [%s:%d] <---> client [%s:%d]", c_conf->server_addr,
           ps->remote_port, ps->local_ip ? ps->local_ip : "::1", ps->local_port);
 
+	//基于
     struct proxy *ctl_prox   = new_proxy_buf(client->ctl_bev);
+
+	//基于本地新建一个proxy
     struct proxy *local_prox = new_proxy_buf(client->local_proxy_bev);
     bufferevent_data_cb proxy_s2c_cb, proxy_c2s_cb;
     if (is_ftp_proxy(client->ps)) {

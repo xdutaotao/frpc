@@ -106,6 +106,7 @@ int login_resp_check(struct login_resp *lr)
         debug(LOG_ERR, "login falied!");
         c_login->logged = 0;
     } else {
+		//设置login标志
         c_login->logged = 1;
         debug(LOG_DEBUG, "xfrp login response: run_id: [%s], version: [%s]", lr->run_id,
               lr->version);

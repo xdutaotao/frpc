@@ -37,11 +37,11 @@ struct event_base;
 enum msg_type;
 
 struct control {
-    struct event_base *connect_base;   // main netevent
-    struct evdns_base *dnsbase;
-    struct bufferevent *connect_bev;   // main io evet buf
-    char session_id;
-    struct event *ticker_ping;   // heartbeat timer
+    struct event_base *connect_base;   // 主event base
+    struct evdns_base *dnsbase;	// dns base
+    struct bufferevent *connect_bev;   // 主控的bufferevent
+    char session_id;	//会话id
+    struct event *ticker_ping;   // heartbeat timer 心跳间隔时间
 };
 
 void connect_eventcb(struct bufferevent *bev, short events, void *ptr);
